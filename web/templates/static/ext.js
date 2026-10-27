@@ -44,7 +44,8 @@
         axios.get('/trojan/port', { headers: getAuthHeaders() }).catch(() => null),
       ]);
 
-      const bbrData = bbrResp && bbrResp.data && bbrResp.data.Data ? bbrResp.data.Data : { enabled: false, algo: 'unknown' };
+      const bbrData = bbrResp && bbrResp.data && bbrResp.data.Data ? bbrResp.data.Data : { enabled: false };
+      const bbrAlgo = bbrData.current_algorithm || bbrData.algo || (bbrData.enabled ? 'bbr' : '未开启');
       const portData = portResp && portResp.data && portResp.data.Data ? portResp.data.Data : { mainPort: 443, multiPorts: [] };
 
       if (document.getElementById('ext-dashboard-row')) return;
@@ -69,8 +70,8 @@
                 <div id="ext-bbr-action" class="el-col el-col-12" style="padding-top:1px;display:flex;align-items:center;gap:8px;">
                   ${
                     bbrData.enabled
-                      ? `<span class="el-tag el-tag--success el-tag--light el-tag--small">已开启 (${bbrData.algo})</span>`
-                      : `<span class="el-tag el-tag--warning el-tag--light el-tag--small">未开启 (${bbrData.algo})</span>
+                      ? `<span class="el-tag el-tag--success el-tag--light el-tag--small">已开启 (${bbrAlgo})</span>`
+                      : `<span class="el-tag el-tag--warning el-tag--light el-tag--small">未开启 (${bbrAlgo})</span>
                          <button id="ext-enable-bbr-btn" class="el-button el-button--primary el-button--small" style="padding:4px 8px;height:24px;">一键开启</button>`
                   }
                 </div>

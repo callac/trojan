@@ -13,6 +13,7 @@ import (
 type BBRStatus struct {
 	Enabled       bool   `json:"enabled"`
 	CurrentAlgo   string `json:"current_algorithm"`
+	Algo          string `json:"algo"`
 	KernelVersion string `json:"kernel_version"`
 	SupportBBR    bool   `json:"support_bbr"`
 }
@@ -28,6 +29,7 @@ func GetBBRStatus() BBRStatus {
 	status := BBRStatus{
 		KernelVersion: kernel,
 		CurrentAlgo:   currentAlgo,
+		Algo:          currentAlgo,
 		Enabled:       strings.Contains(currentAlgo, "bbr"),
 		SupportBBR:    false,
 	}
