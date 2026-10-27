@@ -29,19 +29,18 @@ jobs:
             TAG_NAME="v2.0.0"
           fi
           NOW=$(TZ=Asia/Shanghai date "+%Y%m%d-%H%M")
-          GO_VER=$(go version | awk '{print $3,$4}')
-          GIT_VER=$(git rev-parse HEAD)
-          LDFLAGS="-w -s -X 'trojan/trojan.MVersion=${TAG_NAME}' -X 'trojan/trojan.BuildDate=${NOW}' -X 'trojan/trojan.GoVersion=${GO_VER}' -X 'trojan/trojan.GitVersion=${GIT_VER}'"
+          GIT_VER="${GITHUB_SHA}"
 
           echo "Building amd64 binary..."
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o result/trojan-linux-amd64 .
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s -X trojan/trojan.MVersion=${TAG_NAME} -X trojan/trojan.BuildDate=${NOW} -X trojan/trojan.GitVersion=${GIT_VER}" -o result/trojan-linux-amd64 .
 
           echo "Building arm64 binary..."
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o result/trojan-linux-arm64 .
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-w -s -X trojan/trojan.MVersion=${TAG_NAME} -X trojan/trojan.BuildDate=${NOW} -X trojan/trojan.GitVersion=${GIT_VER}" -o result/trojan-linux-arm64 .
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ github.ref_name || 'v2.0.0' }}
           name: Release ${{ github.ref_name || 'v2.0.0' }}
           draft: false

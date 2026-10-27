@@ -18,6 +18,7 @@ env:
 jobs:
   buildx:
     runs-on: ubuntu-latest
+    if: "${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
