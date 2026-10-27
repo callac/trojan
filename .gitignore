@@ -3,4 +3,5 @@
 /trojan
 /trojan.exe
 !/trojan/
-result/
+result/
+scratch/
