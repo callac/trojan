@@ -170,13 +170,34 @@ installTrojan(){
         rm -f /usr/local/bin/trojan
     fi
     lastest_version=$(curl -H 'Cache-Control: no-cache' -s "$version_check" | grep 'tag_name' | cut -d\" -f4)
-    echo "正在下载管理程序`colorEcho $blue $lastest_version`版本..."
+    if [[ -z "$lastest_version" ]]; then
+        colorEcho $yellow "提示: 在仓库 $github_repo 中未检测到已发布的 Release 版本！"
+        colorEcho $yellow "正在尝试回退至上游基础版本 (或请在您的 GitHub 仓库运行 GitHub Action 发布新版 Release)..."
+        lastest_version=$(curl -H 'Cache-Control: no-cache' -s "https://api.github.com/repos/Jrohy/trojan/releases/latest" | grep 'tag_name' | cut -d\" -f4)
+        download_url="https://github.com/Jrohy/trojan/releases/download"
+    fi
+
+    if [[ -z "$lastest_version" ]]; then
+        colorEcho $red "错误: 获取版本失败，请检查网络或在 GitHub 仓库发布 Release 资产！"
+        exit 1
+    fi
+
+    echo "正在下载管理程序 `colorEcho $blue $lastest_version` 版本..."
     [[ $arch == x86_64 ]] && bin="trojan-linux-amd64" || bin="trojan-linux-arm64" 
-    curl -L "$download_url/$lastest_version/$bin" -o /usr/local/bin/trojan
+    curl -fL "$download_url/$lastest_version/$bin" -o /usr/local/bin/trojan
+
+    # 校验下载的二进制文件是否完整有效
+    local file_size=$(wc -c < /usr/local/bin/trojan 2>/dev/null || echo 0)
+    if [[ $file_size -lt 500000 ]]; then
+        colorEcho $red "错误: 下载管理程序文件异常 (文件大小只有 $file_size 字节，可能未找到二进制资产)！"
+        rm -f /usr/local/bin/trojan
+        exit 1
+    fi
+
     chmod +x /usr/local/bin/trojan
     if [[ ! -e /etc/systemd/system/trojan-web.service ]];then
         show_tip=1
-        curl -L $service_url -o /etc/systemd/system/trojan-web.service
+        curl -fL $service_url -o /etc/systemd/system/trojan-web.service
         systemctl daemon-reload
         systemctl enable trojan-web
     fi
