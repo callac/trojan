@@ -1,5 +1,6 @@
 .vscode
 .idea
-trojan
-trojan.exe
+/trojan
+/trojan.exe
+!/trojan/
 result/
