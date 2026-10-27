@@ -126,32 +126,41 @@ func SetMultiPorts(ports []int) error {
  */
 func ApplyMultiPortRules() error {
 	mainPort, multiPorts := GetPortInfo()
-
-	// 初始化/清空专有 iptables 链
-	util.ExecCommandWithResult("iptables -t nat -N TROJAN_MULTIPORT 2>/dev/null")
-	util.ExecCommandWithResult("iptables -t nat -F TROJAN_MULTIPORT")
-	// 确保 PREROUTING 关联了 TROJAN_MULTIPORT 链
-	checkRule := util.ExecCommandWithResult("iptables -t nat -C PREROUTING -j TROJAN_MULTIPORT 2>/dev/null")
-	if checkRule != "" || strings.Contains(checkRule, "No chain") || strings.Contains(checkRule, "Bad rule") {
-		_ = util.ExecCommandWithResult("iptables -t nat -I PREROUTING 1 -j TROJAN_MULTIPORT")
+	if mainPort <= 0 {
+		mainPort = 443
 	}
 
+	// 1. 确保专有 iptables 自定义链存在
+	util.ExecCommandWithResult("iptables -t nat -N TROJAN_MULTIPORT 2>/dev/null")
+	// 2. 清空该链内旧规则
+	util.ExecCommandWithResult("iptables -t nat -F TROJAN_MULTIPORT 2>/dev/null")
+
+	// 3. 确保 PREROUTING 链的第 1 行挂载了 TROJAN_MULTIPORT (先清理已有避免重复堆叠)
+	util.ExecCommandWithResult("while iptables -t nat -D PREROUTING -j TROJAN_MULTIPORT 2>/dev/null; do :; done")
+	util.ExecCommandWithResult("iptables -t nat -I PREROUTING 1 -j TROJAN_MULTIPORT")
+
+	// 4. 如果没有附加多端口，直接返回 (已清空链)
 	if len(multiPorts) == 0 {
 		return nil
 	}
 
 	var portStrs []string
 	for _, p := range multiPorts {
-		portStrs = append(portStrs, strconv.Itoa(p))
-		util.OpenPort(p)
+		if p > 0 && p <= 65535 && p != mainPort {
+			portStrs = append(portStrs, strconv.Itoa(p))
+			util.OpenPort(p)
+		}
+	}
+	if len(portStrs) == 0 {
+		return nil
 	}
 	portList := strings.Join(portStrs, ",")
 
-	// 将多端口的 TCP 和 UDP 重定向到 trojan 主监听端口
+	// 5. 将多端口的 TCP 和 UDP 重定向到 trojan 主监听端口
 	tcpCmd := fmt.Sprintf("iptables -t nat -A TROJAN_MULTIPORT -p tcp -m multiport --dports %s -j REDIRECT --to-ports %d", portList, mainPort)
 	udpCmd := fmt.Sprintf("iptables -t nat -A TROJAN_MULTIPORT -p udp -m multiport --dports %s -j REDIRECT --to-ports %d", portList, mainPort)
-	_ = util.ExecCommandWithResult(tcpCmd)
-	_ = util.ExecCommandWithResult(udpCmd)
+	util.ExecCommandWithResult(tcpCmd)
+	util.ExecCommandWithResult(udpCmd)
 
 	return nil
 }

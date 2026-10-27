@@ -157,6 +157,9 @@
           <span id="ext-port-close" style="cursor: pointer; font-size: 18px; color: #909399;">✕</span>
         </div>
         <div style="padding: 20px;">
+          <div style="background: #fdf6ec; border: 1px solid #faecd8; border-radius: 4px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; color: #e6a23c; line-height: 1.5;">
+            <b>特别提示：</b>若修改主监听端口（如 444）或配置附加端口，除系统自动放行外，<b>请务必确认已在云服务器控制台（如腾讯云/阿里云/AWS/甲骨文）的安全组规则中放行对应端口的 TCP/UDP 入站</b>，否则外部网络会被安全组拦截导致无法建立连接！
+          </div>
           <div style="margin-bottom: 16px;">
             <label style="display: block; font-size: 14px; font-weight: bold; color: #606266; margin-bottom: 6px;">
               Trojan 主监听端口:
@@ -164,7 +167,7 @@
             <input id="ext-input-main-port" type="number" min="1" max="65535" value="${currentMainPort}"
               class="el-input__inner" style="width: 100%; height: 38px; border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 12px; box-sizing: border-box;" />
             <div style="font-size: 12px; color: #909399; margin-top: 4px;">
-              Trojan 服务核心监听端口（默认 443，需确保未被 Nginx/Apache 占用）。
+              Trojan 服务核心监听端口（默认 443，需确保未被 Nginx/Apache 等其它软件占用）。
             </div>
           </div>
           <div style="margin-bottom: 16px;">

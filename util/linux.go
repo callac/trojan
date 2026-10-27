@@ -72,18 +72,19 @@ func InstallPack(name string) {
 
 // OpenPort 开通指定端口
 func OpenPort(port int) {
+	if port <= 0 || port > 65535 {
+		return
+	}
+	if CheckCommandExists("ufw") {
+		ExecCommand(fmt.Sprintf("ufw allow %d/tcp >/dev/null 2>&1", port))
+		ExecCommand(fmt.Sprintf("ufw allow %d/udp >/dev/null 2>&1", port))
+	}
 	if CheckCommandExists("firewall-cmd") {
 		ExecCommand(fmt.Sprintf("firewall-cmd --zone=public --add-port=%d/tcp --add-port=%d/udp --permanent >/dev/null 2>&1", port, port))
 		ExecCommand("firewall-cmd --reload >/dev/null 2>&1")
-	} else {
-		if len(ExecCommandWithResult(fmt.Sprintf(`iptables -nvL --line-number|grep -w "%d"`, port))) > 0 {
-			return
-		}
-		ExecCommand(fmt.Sprintf("iptables -I INPUT -p tcp --dport %d -j ACCEPT", port))
-		ExecCommand(fmt.Sprintf("iptables -I INPUT -p udp --dport %d -j ACCEPT", port))
-		ExecCommand(fmt.Sprintf("iptables -I OUTPUT -p udp --sport %d -j ACCEPT", port))
-		ExecCommand(fmt.Sprintf("iptables -I OUTPUT -p tcp --sport %d -j ACCEPT", port))
 	}
+	ExecCommand(fmt.Sprintf("iptables -I INPUT 1 -p tcp --dport %d -j ACCEPT >/dev/null 2>&1", port))
+	ExecCommand(fmt.Sprintf("iptables -I INPUT 1 -p udp --dport %d -j ACCEPT >/dev/null 2>&1", port))
 }
 
 // Log 实时打印指定服务日志
