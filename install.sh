@@ -60,27 +60,55 @@ help(){
 }
 
 removeTrojan() {
-    #移除trojan
-    rm -rf /usr/bin/trojan >/dev/null 2>&1
-    rm -rf /usr/local/etc/trojan >/dev/null 2>&1
-    rm -f /etc/systemd/system/trojan.service >/dev/null 2>&1
+    colorEcho ${yellow} "正在全面清理 Trojan 及其关联服务与数据..."
 
-    #移除trojan管理程序
-    rm -f /usr/local/bin/trojan >/dev/null 2>&1
-    rm -rf /var/lib/trojan-manager >/dev/null 2>&1
-    rm -f /etc/systemd/system/trojan-web.service >/dev/null 2>&1
+    # 1. 停止并禁用所有相关 systemd 服务及进程
+    systemctl stop trojan trojan-web trojan-go 2>/dev/null
+    systemctl disable trojan trojan-web trojan-go 2>/dev/null
+    killall -9 trojan trojan-go 2>/dev/null
+    pkill -9 -f "/usr/local/bin/trojan" 2>/dev/null
+    pkill -9 -f "trojan-web" 2>/dev/null
 
+    # 2. 移除 systemd 服务单元并重新加载
+    rm -f /etc/systemd/system/trojan.service 2>/dev/null
+    rm -f /etc/systemd/system/trojan-web.service 2>/dev/null
+    rm -f /etc/systemd/system/trojan-go.service 2>/dev/null
+    rm -f /lib/systemd/system/trojan.service 2>/dev/null
+    rm -f /lib/systemd/system/trojan-web.service 2>/dev/null
     systemctl daemon-reload
 
-    #移除trojan的专用db
-    docker rm -f trojan-mysql trojan-mariadb >/dev/null 2>&1
-    rm -rf /home/mysql /home/mariadb >/dev/null 2>&1
-    
-    #移除环境变量
-    sed -i '/trojan/d' ~/.${shell_way}rc
-    source ~/.${shell_way}rc
+    # 3. 移除可执行文件
+    rm -f /usr/bin/trojan /usr/local/bin/trojan 2>/dev/null
+    rm -f /usr/bin/trojan-go /usr/local/bin/trojan-go 2>/dev/null
 
-    colorEcho ${green} "uninstall success!"
+    # 4. 移除所有配置文件与管理数据目录
+    rm -rf /usr/local/etc/trojan 2>/dev/null
+    rm -rf /var/lib/trojan-manager 2>/dev/null
+
+    # 5. 移除 Docker 数据库容器与持久化数据目录
+    if command -v docker >/dev/null 2>&1; then
+        docker rm -f trojan-mysql trojan-mariadb trojan 2>/dev/null
+    fi
+    rm -rf /home/mysql /home/mariadb 2>/dev/null
+
+    # 6. 清理多端口 iptables 转发规则
+    if command -v iptables >/dev/null 2>&1; then
+        while iptables -t nat -D PREROUTING -j TROJAN_MULTIPORT 2>/dev/null; do :; done
+        iptables -t nat -F TROJAN_MULTIPORT 2>/dev/null
+        iptables -t nat -X TROJAN_MULTIPORT 2>/dev/null
+    fi
+
+    # 7. 清理 Crontab 中与 trojan 相关的定时更新任务
+    if crontab -l 2>/dev/null | grep -E 'trojan|trojan-web' >/dev/null 2>&1; then
+        crontab -l 2>/dev/null | grep -v -E 'trojan|trojan-web' | crontab -
+    fi
+
+    # 8. 移除 shell 环境变量与命令补全
+    sed -i '/trojan/d' ~/.bashrc ~/.zshrc 2>/dev/null
+    sed -i '/trojan/d' /etc/profile /etc/bashrc 2>/dev/null
+    [[ -n "$shell_way" ]] && source ~/.${shell_way}rc 2>/dev/null
+
+    colorEcho ${green} "Trojan 及所有组件已彻底清除干净 (Uninstalled successfully)!"
 }
 
 checkSys() {
