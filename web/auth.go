@@ -105,12 +105,55 @@ func jwtInit(timeout int) {
 	}
 }
 
-func updateUser(c *gin.Context) {
+// registerAdmin 仅在初次部署、管理员密码为空时允许设置密码
+func registerAdmin(c *gin.Context) {
 	responseBody := controller.ResponseBody{Msg: "success"}
 	defer controller.TimeCost(time.Now(), &responseBody)
-	username := c.DefaultPostForm("username", "admin")
+
+	// 严格检查：若系统已有管理员密码，绝对禁止未授权重复注册覆盖
+	adminPass, _ := core.GetValue("admin_pass")
+	if adminPass != "" {
+		responseBody.Msg = "系统管理员已存在，禁止重复注册"
+		c.JSON(403, responseBody)
+		return
+	}
+
 	pass := c.PostForm("password")
-	err := core.SetValue(fmt.Sprintf("%s_pass", username), pass)
+	if pass == "" {
+		responseBody.Msg = "管理员密码不能为空"
+		c.JSON(400, responseBody)
+		return
+	}
+
+	err := core.SetValue("admin_pass", pass)
+	if err != nil {
+		responseBody.Msg = err.Error()
+		c.JSON(500, responseBody)
+		return
+	}
+	c.JSON(200, responseBody)
+}
+
+// resetPassword 重置密码（必须登录后才可调用）
+func resetPassword(c *gin.Context) {
+	responseBody := controller.ResponseBody{Msg: "success"}
+	defer controller.TimeCost(time.Now(), &responseBody)
+
+	currentUser := RequestUsername(c)
+	pass := c.PostForm("password")
+	if pass == "" {
+		responseBody.Msg = "密码不能为空"
+		c.JSON(400, responseBody)
+		return
+	}
+
+	targetUser := c.DefaultPostForm("username", currentUser)
+	// NOTE: 非管理员只能修改自身密码，防止横向越权
+	if currentUser != "admin" {
+		targetUser = currentUser
+	}
+
+	err := core.SetValue(fmt.Sprintf("%s_pass", targetUser), pass)
 	if err != nil {
 		responseBody.Msg = err.Error()
 	}
@@ -152,7 +195,8 @@ func Auth(r *gin.Engine, timeout int) *jwt.GinJWTMiddleware {
 		}
 	})
 	r.POST("/auth/login", authMiddleware.LoginHandler)
-	r.POST("/auth/register", updateUser)
+	// 仅初次未初始化时允许访问，已初始化自动拒绝
+	r.POST("/auth/register", registerAdmin)
 	authO := r.Group("/auth")
 	authO.Use(authMiddleware.MiddlewareFunc())
 	{
@@ -170,7 +214,7 @@ func Auth(r *gin.Engine, timeout int) *jwt.GinJWTMiddleware {
 				})
 			}
 		})
-		authO.POST("/reset_pass", updateUser)
+		authO.POST("/reset_pass", resetPassword)
 		authO.POST("/logout", authMiddleware.LogoutHandler)
 		authO.POST("/refresh_token", authMiddleware.RefreshHandler)
 	}

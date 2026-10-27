@@ -9,11 +9,11 @@ remove=0
 
 update=0
 
-download_url="https://github.com/Jrohy/trojan/releases/download/"
-
-version_check="https://api.github.com/repos/Jrohy/trojan/releases/latest"
-
-service_url="https://raw.githubusercontent.com/Jrohy/trojan/master/asset/trojan-web.service"
+# GitHub 仓库配置，默认使用当前维护仓库 callac/trojan，支持通过环境变量自定义
+github_repo="${GITHUB_REPO:-callac/trojan}"
+download_url="https://github.com/${github_repo}/releases/download"
+version_check="https://api.github.com/repos/${github_repo}/releases/latest"
+service_url="https://raw.githubusercontent.com/${github_repo}/master/asset/trojan-web.service"
 
 [[ -e /var/lib/trojan-manager ]] && update=1
 
@@ -118,6 +118,28 @@ installDependent(){
     fi
 }
 
+setupBBR() {
+    local current_algo=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)
+    if [[ "$current_algo" == *"bbr"* ]]; then
+        colorEcho $green "系统已开启 BBR 加速"
+        return 0
+    fi
+    colorEcho $yellow "检测到未开启 BBR，正在尝试自动开启 BBR 加速..."
+    modprobe tcp_bbr >/dev/null 2>&1
+    if [[ -d /etc/sysctl.d ]]; then
+        echo -e "net.core.default_qdisc=fq\nnet.ipv4.tcp_congestion_control=bbr" > /etc/sysctl.d/99-bbr.conf
+    else
+        echo -e "\nnet.core.default_qdisc=fq\nnet.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
+    fi
+    sysctl --system >/dev/null 2>&1 || sysctl -p /etc/sysctl.conf >/dev/null 2>&1
+    local new_algo=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)
+    if [[ "$new_algo" == *"bbr"* ]]; then
+        colorEcho $green "BBR 加速自动开启成功!"
+    else
+        colorEcho $yellow "BBR 配置完成，若未生效可稍后重启服务器尝试"
+    fi
+}
+
 setupCron() {
     if [[ `crontab -l 2>/dev/null|grep acme` ]]; then
         if [[ -z `crontab -l 2>/dev/null|grep trojan-web` || `crontab -l 2>/dev/null|grep trojan-web|grep "&"` ]]; then
@@ -178,6 +200,7 @@ installTrojan(){
         colorEcho $green "更新trojan管理程序成功!\n"
     fi
     setupCron
+    setupBBR
     [[ $show_tip == 1 ]] && echo "浏览器访问'`colorEcho $blue https://域名`'可在线trojan多用户管理"
 }
 

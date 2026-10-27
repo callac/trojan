@@ -17,38 +17,38 @@ trojan多用户管理部署程序
 - 生成客户端配置文件
 - 在线实时查看trojan日志
 - 在线trojan和trojan-go随时切换
+- **支持 Web 端修改主代理端口，并支持配置多个对外代理端口同时可用 (iptables PREROUTING 透明重定向)**
+- **内置 BBR 拥塞控制自动加速（安装自动部署 + 命令行 + Web 一键开启）**
+- **全量参数化查询重构，彻底修复 SQL 注入漏洞**
+- **Docker 数据库升级至 MariaDB 10.11 LTS，支持自动拉取与守护进程自启，杜绝死循环**
 - 支持trojan://分享链接和二维码分享(仅限web页面)
-- 支持转化为clash订阅地址并导入到[clash_for_windows](https://github.com/Fndroid/clash_for_windows_pkg/releases)(仅限web页面)
+- 支持转化为clash订阅地址并导入到 clash
 - 限制用户使用期限
 
 ## 安装方式
 *trojan使用请提前准备好服务器可用的域名*  
 
 ###  a. 一键脚本安装
-```
-#安装/更新
-source <(curl -sL https://git.io/trojan-install)
+```bash
+# 安装 / 更新
+source <(curl -sL https://raw.githubusercontent.com/callac/trojan/master/install.sh)
 
-#卸载
-source <(curl -sL https://git.io/trojan-install) --remove
-
+# 卸载
+source <(curl -sL https://raw.githubusercontent.com/callac/trojan/master/install.sh) --remove
 ```
-安装完后输入'trojan'可进入管理程序   
-浏览器访问 https://域名 可在线web页面管理trojan用户  
-前端页面源码地址: [trojan-web](https://github.com/Jrohy/trojan-web)
+安装完后输入 `trojan` 可进入管理程序命令行界面。  
+浏览器访问 `https://你的域名` 即可在线 Web 页面管理 trojan。
 
 ### b. docker运行
-1. 安装mysql  
+1. 安装 MySQL / MariaDB (推荐 MariaDB 10.11 LTS)
+```bash
+docker run --name trojan-mariadb --restart=always -p 3306:3306 -v /home/mariadb:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=trojan -e MYSQL_ROOT_HOST=% -e MYSQL_DATABASE=trojan -d mariadb:10.11
+```
+端口和 root 密码以及持久化目录都可以自定义。
 
-因为mariadb内存使用比mysql至少减少一半, 所以推荐使用mariadb数据库
-```
-docker run --name trojan-mariadb --restart=always -p 3306:3306 -v /home/mariadb:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=trojan -e MYSQL_ROOT_HOST=% -e MYSQL_DATABASE=trojan -d mariadb:10.2
-```
-端口和root密码以及持久化目录都可以改成其他的
-
-2. 安装trojan
-```
-docker run -it -d --name trojan --net=host --restart=always --privileged jrohy/trojan init
+2. 运行 trojan 管理容器
+```bash
+docker run -it -d --name trojan --net=host --restart=always --privileged callac/trojan init
 ```
 运行完后进入容器 `docker exec -it trojan bash`, 然后输入'trojan'即可进行初始化安装   
 
@@ -70,6 +70,7 @@ Usage:
 
 Available Commands:
   add           添加用户
+  bbr           查看或开启BBR加速
   clean         清空指定用户流量
   completion    自动命令补全(支持bash和zsh)
   del           删除用户

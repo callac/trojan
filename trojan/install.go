@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	dockerInstallUrl = "https://docker-install.netlify.app/install.sh"
-	dbDockerRun      = "docker run --name trojan-mariadb --restart=always -p %d:3306 -v /home/mariadb:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=%s -e MYSQL_ROOT_HOST=%% -e MYSQL_DATABASE=trojan -d mariadb:10.2"
+	dockerInstallUrl = "https://get.docker.com"
+	dbDockerImage    = "mariadb:10.11"
+	dbDockerRun      = "docker run --name trojan-mariadb --restart=always -p %d:3306 -v /home/mariadb:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=%s -e MYSQL_ROOT_HOST=%% -e MYSQL_DATABASE=trojan -d " + dbDockerImage
 )
 
 // InstallMenu 安装目录
@@ -33,12 +34,24 @@ func InstallMenu() {
 	}
 }
 
-// InstallDocker 安装docker
+// InstallDocker 安装并启动docker
 func InstallDocker() {
 	if !util.CheckCommandExists("docker") {
-		util.RunWebShell(dockerInstallUrl)
+		fmt.Println("未检测到Docker环境，正在尝试自动安装Docker...")
+		if err := util.ExecCommand("curl -fsSL https://get.docker.com | bash"); err != nil {
+			fmt.Println("官方脚本安装失败，尝试通过系统包管理器安装...")
+			if util.CheckCommandExists("apt-get") {
+				util.ExecCommand("apt-get update && apt-get install -y docker.io")
+			} else if util.CheckCommandExists("dnf") {
+				util.ExecCommand("dnf install -y docker")
+			} else if util.CheckCommandExists("yum") {
+				util.ExecCommand("yum install -y docker")
+			}
+		}
 		fmt.Println()
 	}
+	// NOTE: 确保 Docker 服务开机自启并立即处于运行状态，防止后续 docker 命令因守护进程未启动而报错
+	util.ExecCommand("systemctl daemon-reload && systemctl enable --now docker >/dev/null 2>&1")
 }
 
 // InstallTrojan 安装trojan
@@ -165,22 +178,50 @@ func InstallMysql() {
 	} else if choice == 1 {
 		mysql = core.Mysql{ServerAddr: "127.0.0.1", ServerPort: util.RandomPort(), Password: util.RandString(8, util.LETTER+util.DIGITS), Username: "root", Database: "trojan"}
 		InstallDocker()
-		fmt.Println(fmt.Sprintf(dbDockerRun, mysql.ServerPort, mysql.Password))
 		if util.CheckCommandExists("setenforce") {
 			util.ExecCommand("setenforce 0")
 		}
 		util.OpenPort(mysql.ServerPort)
-		util.ExecCommand(fmt.Sprintf(dbDockerRun, mysql.ServerPort, mysql.Password))
+
+		// NOTE: 清理可能存在的旧容器，防止名字冲突导致 docker run 报错
+		util.ExecCommand("docker rm -f trojan-mariadb >/dev/null 2>&1")
+
+		// 提前显式拉取镜像，保证拉取过程对用户可见
+		fmt.Printf("正在拉取最新稳定数据库镜像 %s，请稍等...\n", dbDockerImage)
+		util.ExecCommand("docker pull " + dbDockerImage)
+
+		runCmd := fmt.Sprintf(dbDockerRun, mysql.ServerPort, mysql.Password)
+		fmt.Println("正在启动数据库容器:")
+		fmt.Println(runCmd)
+		if err := util.ExecCommand(runCmd); err != nil {
+			fmt.Println("启动Docker容器命令失败:", err.Error())
+			return
+		}
+
 		db := mysql.GetDB()
-		for {
-			fmt.Printf("%s mariadb启动中,请稍等...\n", time.Now().Format("2006-01-02 15:04:05"))
+		if db == nil {
+			fmt.Println("初始化数据库连接对象失败!")
+			return
+		}
+
+		// 最多重试45次(90秒)，杜绝死循环
+		maxRetries := 45
+		dbReady := false
+		for i := 0; i < maxRetries; i++ {
+			fmt.Printf("%s mariadb启动中(%d/%d), 请稍等...\n", time.Now().Format("2006-01-02 15:04:05"), i+1, maxRetries)
 			err := db.Ping()
 			if err == nil {
 				db.Close()
+				dbReady = true
 				break
-			} else {
-				time.Sleep(2 * time.Second)
 			}
+			time.Sleep(2 * time.Second)
+		}
+
+		if !dbReady {
+			fmt.Println("mariadb 启动超时，输出最近容器日志以供排查:")
+			util.ExecCommand("docker logs --tail 30 trojan-mariadb")
+			return
 		}
 		fmt.Println("mariadb启动成功!")
 	} else if choice == 2 {

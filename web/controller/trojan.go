@@ -154,9 +154,9 @@ func ImportCsv(c *gin.Context) *ResponseBody {
 		return &responseBody
 	}
 	for _, user := range userList {
-		if _, err = db.Exec(fmt.Sprintf(`
-INSERT INTO users(username, password, passwordShow, quota, download, upload, useDays, expiryDate) VALUES ('%s','%s','%s', %d, %d, %d, %d, '%s');`,
-			user.Username, user.EncryptPass, user.Password, user.Quota, user.Download, user.Upload, user.UseDays, user.ExpiryDate)); err != nil {
+		if _, err = db.Exec(`
+INSERT INTO users(username, password, passwordShow, quota, download, upload, useDays, expiryDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+			user.Username, user.EncryptPass, user.Password, user.Quota, user.Download, user.Upload, user.UseDays, user.ExpiryDate); err != nil {
 			responseBody.Msg = err.Error()
 			return &responseBody
 		}
@@ -197,4 +197,56 @@ func ExportCsv(c *gin.Context) *ResponseBody {
 	c.Writer.Header().Set("Content-Disposition", fmt.Sprintf("attachment;filename=%s", fmt.Sprintf("%s.csv", mysql.Database)))
 	c.String(200, dataBytes.String())
 	return nil
+}
+
+// GetPort 获取主端口与多端口信息
+func GetPort() *ResponseBody {
+	responseBody := ResponseBody{Msg: "success"}
+	defer TimeCost(time.Now(), &responseBody)
+	mainPort, multiPorts := trojan.GetPortInfo()
+	responseBody.Data = map[string]interface{}{
+		"mainPort":   mainPort,
+		"multiPorts": multiPorts,
+	}
+	return &responseBody
+}
+
+// SetPort 修改主端口
+func SetPort(port int) *ResponseBody {
+	responseBody := ResponseBody{Msg: "success"}
+	defer TimeCost(time.Now(), &responseBody)
+	if err := trojan.SetMainPort(port); err != nil {
+		responseBody.Msg = err.Error()
+	}
+	return &responseBody
+}
+
+// SetMultiPort 修改多端口重定向
+func SetMultiPort(ports []int) *ResponseBody {
+	responseBody := ResponseBody{Msg: "success"}
+	defer TimeCost(time.Now(), &responseBody)
+	if err := trojan.SetMultiPorts(ports); err != nil {
+		responseBody.Msg = err.Error()
+	}
+	return &responseBody
+}
+
+// GetBBR 获取BBR状态
+func GetBBR() *ResponseBody {
+	responseBody := ResponseBody{Msg: "success"}
+	defer TimeCost(time.Now(), &responseBody)
+	responseBody.Data = util.GetBBRStatus()
+	return &responseBody
+}
+
+// SetBBR 一键开启BBR
+func SetBBR() *ResponseBody {
+	responseBody := ResponseBody{Msg: "success"}
+	defer TimeCost(time.Now(), &responseBody)
+	ok, err := util.EnableBBR()
+	if !ok && err != nil {
+		responseBody.Msg = err.Error()
+	}
+	responseBody.Data = util.GetBBRStatus()
+	return &responseBody
 }

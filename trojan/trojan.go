@@ -83,24 +83,61 @@ func UpTime() string {
 	return ""
 }
 
-// ChangePort 修改trojan端口
+// ChangePort 修改trojan端口或多端口
 func ChangePort() {
-	config := core.GetConfig()
-	oldPort := config.LocalPort
-	randomPort := util.RandomPort()
-	fmt.Println("当前trojan端口: " + util.Green(strconv.Itoa(oldPort)))
-	newPortStr := util.Input(fmt.Sprintf("请输入新的trojan端口(若要使用随机端口%s直接回车即可): ", util.Blue(strconv.Itoa(randomPort))), strconv.Itoa(randomPort))
-	newPort, err := strconv.Atoi(newPortStr)
-	if err != nil {
-		fmt.Println("修改端口失败: " + err.Error())
-		return
-	}
-	if core.WritePort(newPort) {
-		util.OpenPort(newPort)
-		fmt.Println(util.Green("端口修改成功!"))
-		Restart()
+	mainPort, multiPorts := GetPortInfo()
+	fmt.Printf("\n当前主端口: %s\n", util.Green(strconv.Itoa(mainPort)))
+	if len(multiPorts) > 0 {
+		var portStrs []string
+		for _, p := range multiPorts {
+			portStrs = append(portStrs, strconv.Itoa(p))
+		}
+		fmt.Printf("当前附加多端口: %s\n", util.Green(strings.Join(portStrs, ", ")))
 	} else {
-		fmt.Println(util.Red("端口修改成功!"))
+		fmt.Printf("当前附加多端口: %s\n", util.Yellow("未配置"))
+	}
+
+	choice := util.LoopInput("请选择操作: ", []string{"修改主端口", "设置附加多端口(多端口同时代理)", "清空附加多端口"}, true)
+	switch choice {
+	case 1:
+		randomPort := util.RandomPort()
+		newPortStr := util.Input(fmt.Sprintf("请输入新的主端口(若使用随机端口 %s 直接回车): ", util.Blue(strconv.Itoa(randomPort))), strconv.Itoa(randomPort))
+		newPort, err := strconv.Atoi(newPortStr)
+		if err != nil {
+			fmt.Println("修改端口失败: " + err.Error())
+			return
+		}
+		if err := SetMainPort(newPort); err == nil {
+			fmt.Println(util.Green("主端口修改成功!"))
+		} else {
+			fmt.Println(util.Red("修改失败: " + err.Error()))
+		}
+	case 2:
+		inputStr := util.Input("请输入附加端口(多个端口用逗号隔开，例如 8443,2083,2087): ", "")
+		if inputStr == "" {
+			fmt.Println("未输入任何端口")
+			return
+		}
+		var ports []int
+		for _, s := range strings.Split(inputStr, ",") {
+			s = strings.TrimSpace(s)
+			if p, err := strconv.Atoi(s); err == nil && p > 0 && p <= 65535 {
+				ports = append(ports, p)
+			}
+		}
+		if err := SetMultiPorts(ports); err == nil {
+			fmt.Println(util.Green("多端口重定向配置成功并已生效!"))
+		} else {
+			fmt.Println(util.Red("配置失败: " + err.Error()))
+		}
+	case 3:
+		if err := SetMultiPorts([]int{}); err == nil {
+			fmt.Println(util.Green("附加多端口已清空并恢复单主端口监听!"))
+		} else {
+			fmt.Println(util.Red("清空失败: " + err.Error()))
+		}
+	default:
+		return
 	}
 }
 
