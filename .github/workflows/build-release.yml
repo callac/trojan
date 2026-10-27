@@ -15,11 +15,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.23'
+          cache: true
 
       - name: Build binaries
         run: |
@@ -29,13 +32,16 @@ jobs:
             TAG_NAME="v2.0.0"
           fi
           NOW=$(TZ=Asia/Shanghai date "+%Y%m%d-%H%M")
-          GIT_VER="${GITHUB_SHA}"
+          GIT_VER=$(git rev-parse --short HEAD 2>/dev/null || echo "latest")
 
           echo "Building amd64 binary..."
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s -X trojan/trojan.MVersion=${TAG_NAME} -X trojan/trojan.BuildDate=${NOW} -X trojan/trojan.GitVersion=${GIT_VER}" -o result/trojan-linux-amd64 .
 
           echo "Building arm64 binary..."
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-w -s -X trojan/trojan.MVersion=${TAG_NAME} -X trojan/trojan.BuildDate=${NOW} -X trojan/trojan.GitVersion=${GIT_VER}" -o result/trojan-linux-arm64 .
+
+          echo "Build result files:"
+          ls -lh result/
 
       - name: Release
         uses: softprops/action-gh-release@v2
